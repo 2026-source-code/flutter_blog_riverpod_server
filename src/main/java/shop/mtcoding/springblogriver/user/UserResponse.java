@@ -1,7 +1,5 @@
 package shop.mtcoding.springblogriver.user;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
 import java.time.format.DateTimeFormatter;
 
 public class UserResponse {
@@ -12,7 +10,8 @@ public class UserResponse {
         }
     }
 
-    public record DetailDTO(Integer id, String username, String email, String imgUrl, String createdAt, String updatedAt) {
+    public record DetailDTO(Integer id, String username, String email, String imgUrl, String createdAt,
+                            String updatedAt) {
         public DetailDTO(User user) {
             this(
                     user.getId(),
@@ -26,7 +25,7 @@ public class UserResponse {
     }
 
     // jwt는 service -> controller 넘어갈 때만 사용
-    record LoginDTO(@JsonIgnore String accessToken, Integer id, String username, String imgUrl) {
+    record LoginDTO(String accessToken, Integer id, String username, String imgUrl) {
         LoginDTO(String accessToken, User user) {
             this(accessToken, user.getId(), user.getUsername(), user.getImgUrl());
         }

@@ -21,7 +21,6 @@ import shop.mtcoding.springblogriver.user.UserRequest;
 import java.time.LocalDateTime;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @Sql("classpath:db/teardown.sql")
@@ -105,11 +104,11 @@ public class UserControllerTest extends MyWithRestDoc {
         System.out.println("Authorization 헤더 값: " + authorizationHeaderValue);
 
         // verify
-        resultActions.andExpect(header().string("Authorization", Matchers.notNullValue()));
         resultActions.andExpect(jsonPath("$.success").value("true"));
         resultActions.andExpect(jsonPath("$.response.id").value(1));
         resultActions.andExpect(jsonPath("$.response.username").value("ssar"));
         resultActions.andExpect(jsonPath("$.response.imgUrl").value("/images/1.png"));
+        resultActions.andExpect(jsonPath("$.response.accessToken").exists());
         resultActions.andExpect(jsonPath("$.status").value(200));
         resultActions.andExpect(jsonPath("$.errorMessage").isEmpty());
         resultActions.andDo(MockMvcResultHandlers.print());

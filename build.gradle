@@ -41,46 +41,36 @@ dependencies {
     testImplementation group: 'org.testcontainers', name: 'testcontainers', version: '1.17.2'
 }
 
-jar {
-    enabled = false
-}
 
-/******* Start Spring Rest Docs *******/
+// 1. gradlew build (test코드 실행 -> 결과 build/generated-snippets 에 copy한다. *.adoc) - 변수 설정 완료
 ext {
-    snippetsDir = file("build/generated-snippets")
+    set('snippetsDir', file("build/generated-snippets"))
 }
 
-test {
-    systemProperty 'file.encoding', 'UTF-8'
-    useJUnitPlatform()
+// 2. gradlew build (test코드 실행 -> 진짜로 1번의 결과가 실횅됨)
+tasks.named('test') {
     outputs.dir snippetsDir
+    useJUnitPlatform()
 }
 
-asciidoctor.doFirst {
-    delete file("src/main/resources/static/docs")
-}
-
-asciidoctor {
+// 3. 테스트가 종료되면 asciidoctor 실행 -> *.adoc 파일들을 가지고 하나의 .adoc 파일로 변경 (src/docs/asciidoc)
+tasks.named('asciidoctor') {
     inputs.dir snippetsDir
-    configurations 'asciidoctorExt'
     dependsOn test
 }
 
-bootJar {
-    dependsOn asciidoctor
-    from("${asciidoctor.outputDir}/html5") {
-        into 'static/docs'
-    }
+// 4. HTML 파일을 서버에서 열어볼 수 있게 Copy
+tasks.register('copyRestDocs', Copy) {
+    dependsOn tasks.named('asciidoctor')
+    from "${asciidoctor.outputDir}"  // asciidoctor 결과 위치
+    into "src/main/resources/static/docs"
 }
 
-
-task copyDocument(type: Copy) {
-    dependsOn asciidoctor
-    from file("build/docs/asciidoc")
-    into file("src/main/resources/static/docs")
+tasks.named('bootJar') {
+    dependsOn tasks.named('copyRestDocs')
 }
 
-build {
-    dependsOn copyDocument
+// plain 파일 생성하지 않기
+jar {
+    enabled = false
 }
-/******* End Spring Rest Docs *******/
