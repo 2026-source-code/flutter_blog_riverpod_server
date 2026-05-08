@@ -9,41 +9,50 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import shop.mtcoding.springblogriver.user.User;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public class JwtUtil {
 
-    //public final static Long EXPIRATION_TIME = 1000L;
-    //public final static Long EXPIRATION_REFRESH_TIME = 1000L;
-    public final static Long EXPIRATION_TIME = 1000*60*60*24*2L;
-    public final static Long EXPIRATION_REFRESH_TIME = 1000*60*60*24*14L;
+    // 액세스 토큰: 30분
+    public final static Long EXPIRATION_TIME = 1000L * 60 * 30;
 
-    private static String create(User user, Long expirationTime) {
-        String jwt = JWT.create()
+    // 리프레시 토큰: 7일
+    public final static Long EXPIRATION_REFRESH_TIME = 1000L * 60 * 60 * 24 * 7;
+
+    public static String createdAccessToken(User user) {
+        return JWT.create()
                 .withSubject("metacoding")
                 .withClaim("id", user.getId())
                 .withClaim("username", user.getUsername())
                 .withClaim("imgUrl", user.getImgUrl())
-                .withExpiresAt(Instant.now().plusMillis(expirationTime))
+                .withExpiresAt(Instant.now().plusMillis(EXPIRATION_TIME))
                 .sign(Algorithm.HMAC512("metacoding"));
-        return jwt;
     }
 
-    public static String createdAccessToken(User user){
-        return create(user, EXPIRATION_TIME);
+    public static String createdRefreshToken(User user) {
+        return JWT.create()
+                .withSubject("metacoding-refresh")
+                .withJWTId(UUID.randomUUID().toString())
+                .withClaim("id", user.getId())
+                .withExpiresAt(Instant.now().plusMillis(EXPIRATION_REFRESH_TIME))
+                .sign(Algorithm.HMAC512("metacoding-refresh-secret"));
     }
 
     public static User verify(String jwt)
             throws SignatureVerificationException, TokenExpiredException, JWTDecodeException {
         jwt = jwt.replace("Bearer ", "");
-
-        // JWT를 검증한 후, 검증이 완료되면, header, payload를 base64로 복호화함.
         DecodedJWT decodedJWT = JWT.require(Algorithm.HMAC512("metacoding"))
                 .build().verify(jwt);
-
         int id = decodedJWT.getClaim("id").asInt();
         String username = decodedJWT.getClaim("username").asString();
         String imgUrl = decodedJWT.getClaim("imgUrl").asString();
-
         return User.builder().id(id).username(username).imgUrl(imgUrl).build();
+    }
+
+    public static int verifyRefreshToken(String refreshToken)
+            throws SignatureVerificationException, TokenExpiredException, JWTDecodeException {
+        DecodedJWT decodedJWT = JWT.require(Algorithm.HMAC512("metacoding-refresh-secret"))
+                .build().verify(refreshToken);
+        return decodedJWT.getClaim("id").asInt();
     }
 }

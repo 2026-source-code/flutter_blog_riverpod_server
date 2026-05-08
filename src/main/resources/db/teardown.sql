@@ -1,4 +1,5 @@
 SET REFERENTIAL_INTEGRITY FALSE;
+truncate table token_tb;
 truncate table bookmark_tb;
 truncate table reply_tb;
 truncate table post_tb;

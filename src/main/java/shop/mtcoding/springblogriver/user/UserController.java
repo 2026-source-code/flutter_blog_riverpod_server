@@ -49,6 +49,12 @@ public class UserController {
         return ResponseEntity.ok(ApiUtil.success(responseDTO));
     }
 
+    @PostMapping("/reissue")
+    public ResponseEntity<?> reissue(@RequestBody UserRequest.ReissueDTO requestDTO) {
+        UserResponse.ReissueDTO responseDTO = userService.리이슈(requestDTO);
+        return ResponseEntity.ok(ApiUtil.success(responseDTO));
+    }
+
     @PostMapping("/join")
     public ResponseEntity<?> join(@RequestBody UserRequest.JoinDTO requestDTO) {
         return ResponseEntity.ok(ApiUtil.success(userService.회원가입(requestDTO)));

@@ -25,6 +25,13 @@ public class UserRequest {
     public static class LoginDTO {
         private String username;
         private String password;
+        private String deviceId;
+    }
+
+    @Data
+    public static class ReissueDTO {
+        private String refreshToken;
+        private String deviceId;
     }
 
     @Data

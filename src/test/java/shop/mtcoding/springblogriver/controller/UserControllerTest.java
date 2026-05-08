@@ -87,6 +87,7 @@ public class UserControllerTest extends MyWithRestDoc {
         UserRequest.LoginDTO loginDTO = new UserRequest.LoginDTO();
         loginDTO.setUsername("ssar");
         loginDTO.setPassword("1234");
+        loginDTO.setDeviceId("test-device-001");
 
         String requestBody = om.writeValueAsString(loginDTO);
         System.out.println(requestBody);
@@ -95,22 +96,131 @@ public class UserControllerTest extends MyWithRestDoc {
                 post("/login").content(requestBody).contentType(MediaType.APPLICATION_JSON)
         );
 
-        // console
         String responseBody = resultActions.andReturn().getResponse().getContentAsString();
         System.out.println("테스트 : " + responseBody);
 
-        // 헤더에서 Authorization 값을 추출
-        String authorizationHeaderValue = resultActions.andReturn().getResponse().getHeader("Authorization");
-        System.out.println("Authorization 헤더 값: " + authorizationHeaderValue);
-
-        // verify
         resultActions.andExpect(jsonPath("$.success").value("true"));
         resultActions.andExpect(jsonPath("$.response.id").value(1));
         resultActions.andExpect(jsonPath("$.response.username").value("ssar"));
         resultActions.andExpect(jsonPath("$.response.imgUrl").value("/images/1.png"));
         resultActions.andExpect(jsonPath("$.response.accessToken").exists());
+        resultActions.andExpect(jsonPath("$.response.refreshToken").exists());
         resultActions.andExpect(jsonPath("$.status").value(200));
         resultActions.andExpect(jsonPath("$.errorMessage").isEmpty());
+        resultActions.andDo(MockMvcResultHandlers.print());
+        resultActions.andDo(document);
+    }
+
+    @Test
+    public void reissue_test() throws Exception {
+        UserRequest.LoginDTO loginDTO = new UserRequest.LoginDTO();
+        loginDTO.setUsername("ssar");
+        loginDTO.setPassword("1234");
+        loginDTO.setDeviceId("test-device-001");
+
+        String loginBody = om.writeValueAsString(loginDTO);
+        String loginResponse = mvc.perform(
+                post("/login").content(loginBody).contentType(MediaType.APPLICATION_JSON)
+        ).andReturn().getResponse().getContentAsString();
+
+        com.fasterxml.jackson.databind.JsonNode node =
+                new com.fasterxml.jackson.databind.ObjectMapper().readTree(loginResponse);
+        String refreshToken = node.get("response").get("refreshToken").asText();
+
+        UserRequest.ReissueDTO reissueDTO = new UserRequest.ReissueDTO();
+        reissueDTO.setRefreshToken(refreshToken);
+        reissueDTO.setDeviceId("test-device-001");
+
+        ResultActions resultActions = mvc.perform(
+                post("/reissue").content(om.writeValueAsString(reissueDTO)).contentType(MediaType.APPLICATION_JSON)
+        );
+
+        String responseBody = resultActions.andReturn().getResponse().getContentAsString();
+        System.out.println("reissue 테스트 : " + responseBody);
+
+        resultActions.andExpect(jsonPath("$.success").value("true"));
+        resultActions.andExpect(jsonPath("$.response.accessToken").exists());
+        resultActions.andExpect(jsonPath("$.response.refreshToken").exists());
+        resultActions.andExpect(jsonPath("$.status").value(200));
+        resultActions.andExpect(jsonPath("$.errorMessage").isEmpty());
+        resultActions.andDo(MockMvcResultHandlers.print());
+        resultActions.andDo(document);
+    }
+
+    @Test
+    public void reissue_wrong_device_test() throws Exception {
+        UserRequest.LoginDTO loginDTO = new UserRequest.LoginDTO();
+        loginDTO.setUsername("ssar");
+        loginDTO.setPassword("1234");
+        loginDTO.setDeviceId("device-A");
+
+        String loginBody = om.writeValueAsString(loginDTO);
+        String loginResponse = mvc.perform(
+                post("/login").content(loginBody).contentType(MediaType.APPLICATION_JSON)
+        ).andReturn().getResponse().getContentAsString();
+
+        com.fasterxml.jackson.databind.JsonNode node =
+                new com.fasterxml.jackson.databind.ObjectMapper().readTree(loginResponse);
+        String refreshToken = node.get("response").get("refreshToken").asText();
+
+        UserRequest.ReissueDTO reissueDTO = new UserRequest.ReissueDTO();
+        reissueDTO.setRefreshToken(refreshToken);
+        reissueDTO.setDeviceId("device-B");
+
+        ResultActions resultActions = mvc.perform(
+                post("/reissue").content(om.writeValueAsString(reissueDTO)).contentType(MediaType.APPLICATION_JSON)
+        );
+
+        String responseBody = resultActions.andReturn().getResponse().getContentAsString();
+        System.out.println("wrong device 테스트 : " + responseBody);
+
+        resultActions.andExpect(jsonPath("$.success").value("false"));
+        resultActions.andExpect(jsonPath("$.status").value(401));
+        resultActions.andExpect(jsonPath("$.errorMessage").value("REFRESH_TOKEN_NOT_MATCH_SAVED_REDIS"));
+        resultActions.andDo(MockMvcResultHandlers.print());
+        resultActions.andDo(document);
+    }
+
+    @Test
+    public void reissue_reuse_detection_test() throws Exception {
+        UserRequest.LoginDTO loginDTO = new UserRequest.LoginDTO();
+        loginDTO.setUsername("ssar");
+        loginDTO.setPassword("1234");
+        loginDTO.setDeviceId("device-A");
+
+        String loginBody = om.writeValueAsString(loginDTO);
+        String loginResponse = mvc.perform(
+                post("/login").content(loginBody).contentType(MediaType.APPLICATION_JSON)
+        ).andReturn().getResponse().getContentAsString();
+
+        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(loginResponse);
+        String originalRefreshToken = node.get("response").get("refreshToken").asText();
+
+        // 1회 정상 회전 → originalRefreshToken은 previousRefreshToken이 됨
+        UserRequest.ReissueDTO firstReissue = new UserRequest.ReissueDTO();
+        firstReissue.setRefreshToken(originalRefreshToken);
+        firstReissue.setDeviceId("device-A");
+
+        mvc.perform(
+                post("/reissue").content(om.writeValueAsString(firstReissue)).contentType(MediaType.APPLICATION_JSON)
+        ).andExpect(jsonPath("$.success").value("true"));
+
+        // 이미 폐기된 토큰 재사용 시도 → Reuse Detection
+        UserRequest.ReissueDTO reuseAttempt = new UserRequest.ReissueDTO();
+        reuseAttempt.setRefreshToken(originalRefreshToken);
+        reuseAttempt.setDeviceId("device-A");
+
+        ResultActions resultActions = mvc.perform(
+                post("/reissue").content(om.writeValueAsString(reuseAttempt)).contentType(MediaType.APPLICATION_JSON)
+        );
+
+        String responseBody = resultActions.andReturn().getResponse().getContentAsString();
+        System.out.println("reuse detection 테스트 : " + responseBody);
+
+        resultActions.andExpect(jsonPath("$.success").value("false"));
+        resultActions.andExpect(jsonPath("$.status").value(401));
+        resultActions.andExpect(jsonPath("$.errorMessage").value("REFRESH_TOKEN_REUSED"));
         resultActions.andDo(MockMvcResultHandlers.print());
         resultActions.andDo(document);
     }
